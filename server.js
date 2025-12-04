@@ -28,7 +28,31 @@ const app = express();
 const PORT = 3000;
 
 // Configurarea middleware-ului de baza
-app.use(cors()); // permite cereri cross-origin de la frontend
+
+// --- CONFIGURARE CORS ---
+const allowedOrigins = [
+  "http://localhost:5173", // Pentru când lucrezi local
+  "https://mern-bookstore-frontend-sand.vercel.app", // <-- AICI PUI LINK-UL TĂU DE VERCEL (fără slash la final)
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Permitem cereri fără origine (de ex. mobile apps sau curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) === -1) {
+        var msg =
+          "The CORS policy for this site does not allow access from the specified Origin.";
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
+// ------------------------
+
 app.use(express.json()); // parser pentru JSON in request body
 
 // Caile catre fisierele de date
@@ -836,79 +860,87 @@ app.put(
 /**
  * RUTA DELETE /api/admin/products/:id Șterge sau dezactivează produs
  */
-app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  try {
-    const productId = parseInt(req.params.id);
-    // Verifică dacă se dorește ștergere permanentă (ex: ?permanent=true)
-    const { permanent = false } = req.query; 
-    let products = readProducts();
-    const productIndex = products.findIndex(p => p.id === productId);
+app.delete(
+  "/api/admin/products/:id",
+  authenticateToken,
+  requireAdmin,
+  (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      // Verifică dacă se dorește ștergere permanentă (ex: ?permanent=true)
+      const { permanent = false } = req.query;
+      let products = readProducts();
+      const productIndex = products.findIndex((p) => p.id === productId);
 
-    if (productIndex === -1) {
-      return res.status(404).json({
+      if (productIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          message: "Produsul nu a fost găsit",
+        });
+      }
+
+      let message = "";
+      if (permanent) {
+        // Ștergere permanentă
+        products.splice(productIndex, 1);
+        message = "Produs șters definitiv";
+      } else {
+        // Soft delete (doar dezactivează)
+        products[productIndex].isActive = false;
+        products[productIndex].updatedAt = new Date().toISOString();
+        message = "Produs dezactivat cu succes";
+      }
+
+      // Salvează modificările în fișier
+      fs.writeFileSync(PRODUCTS_FILE, JSON.stringify({ products }, null, 2));
+
+      res.json({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error("Eroare la ștergerea produsului:", error);
+      res.status(500).json({
         success: false,
-        message: 'Produsul nu a fost găsit'
+        message: "Eroare server la ștergerea produsului",
       });
     }
-
-    let message = '';
-    if (permanent) {
-      // Ștergere permanentă
-      products.splice(productIndex, 1);
-      message = 'Produs șters definitiv';
-    } else {
-      // Soft delete (doar dezactivează)
-      products[productIndex].isActive = false;
-      products[productIndex].updatedAt = new Date().toISOString();
-      message = 'Produs dezactivat cu succes';
-    }
-
-    // Salvează modificările în fișier
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify({ products }, null, 2));
-
-    res.json({
-      success: true,
-      message
-    });
-
-  } catch (error) {
-    console.error('Eroare la ștergerea produsului:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Eroare server la ștergerea produsului'
-    });
   }
-});
+);
 
 /**
  * RUTA GET /api/admin/products/:id Obține un singur produs
  */
-app.get('/api/admin/products/:id', authenticateToken, requireAdmin, (req, res) => {
-  try {
-    const productId = parseInt(req.params.id);
-    const products = readProducts();
-    const product = products.find(p => p.id === productId);
+app.get(
+  "/api/admin/products/:id",
+  authenticateToken,
+  requireAdmin,
+  (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const products = readProducts();
+      const product = products.find((p) => p.id === productId);
 
-    if (!product) {
-      return res.status(404).json({
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: "Produsul nu a fost găsit",
+        });
+      }
+
+      res.json({
+        success: true,
+        product,
+      });
+    } catch (error) {
+      console.error("Eroare la obținerea produsului:", error);
+      res.status(500).json({
         success: false,
-        message: 'Produsul nu a fost găsit'
+        message: "Eroare server la obținerea produsului",
       });
     }
-
-    res.json({
-      success: true,
-      product
-    });
-
-  } catch (error) {
-    console.error('Eroare la obținerea produsului:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Eroare server la obținerea produsului'
-    });
   }
-});
+);
 
 // Pornirea serverului
 if (process.env.NODE_ENV !== "test") {
