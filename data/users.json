@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "email": "admin@bookstore.com",
+      "password": "$2a$12$ZxHTKWwOTRmpj8k0cBId6eiEwcGXI631oz.m0dzSX162oRdUPBZEe",
+      "role": "admin",
+      "name": "Administrator",
+      "createdAt": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
